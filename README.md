@@ -64,7 +64,7 @@
   <h2>Системная аналитика и документация</h2>
   <p>Вся проектная документация, схемы БД и описание API ведутся в отдельном пространстве.</p>
 
-  <a href="https://unidraw.io/app/board/db7c0376d4a9869ecca7" target="_blank">
+  <a href="https://unidraw.io/app/board/4790c98967f65f9163bc?allow_guest=true" target="_blank">
     <img src="https://img.shields.io/badge/Перейти_на_доску_аналитика_(Unidraw)-FFDD2D?style=for-the-badge&logoColor=333333" alt="Board Link" height="40"/>
   </a>
 </div>
