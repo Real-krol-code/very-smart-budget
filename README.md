@@ -73,7 +73,11 @@
 <a href="https://unidraw.io/app/board/1f8fe6f37129fe218e64" target="_blank">
     <img src="https://img.shields.io/badge/Cистемный_дизайн_(Unidraw)-FFDD2D?style=for-the-badge&logoColor=333333" alt="Board Link" height="40"/>
   </a>
+<a href="https://wiki.yandex.ru/?skipPromo=1&utm_referrer=https%253A%252F%252Fwiki.yandex.ru%252F" target="_blank">
+    <img src="https://img.shields.io/badge/Wiki_проекта_(wiki)-FFDD2D?style=for-the-badge&logoColor=333333" alt="Board Link" height="40"/>
+  </a>
 </div>
+
 
 <br>
 
