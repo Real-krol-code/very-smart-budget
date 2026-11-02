@@ -67,6 +67,12 @@
   <a href="https://unidraw.io/app/board/4790c98967f65f9163bc?allow_guest=true" target="_blank">
     <img src="https://img.shields.io/badge/Перейти_на_доску_аналитика_(Unidraw)-FFDD2D?style=for-the-badge&logoColor=333333" alt="Board Link" height="40"/>
   </a>
+<a href="https://ru.yougile.com/team/03e91f485810/Very__dash__smart__dash__budget" target="_blank">
+    <img src="https://img.shields.io/badge/Перейти_на_доску_задач_(YouGile)-FFDD2D?style=for-the-badge&logoColor=333333" alt="Board Link" height="40"/>
+  </a>
+<a href="https://unidraw.io/app/board/1f8fe6f37129fe218e64" target="_blank">
+    <img src="https://img.shields.io/badge/Cистемный_дизайн_(Unidraw)-FFDD2D?style=for-the-badge&logoColor=333333" alt="Board Link" height="40"/>
+  </a>
 </div>
 
 <br>
