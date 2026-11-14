@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: smart-budget-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smart_budget
+      POSTGRES_USER: smart_budget
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_dev_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - smart_budget_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smart_budget -d smart_budget"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  flyway:
+    image: flyway/flyway:13.12.2
+    profiles: ["migration"]
+    volumes:
+      - ./src/main/resources/db/migration:/flyway/sql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  smart_budget_postgres_data:
