@@ -1,4 +1,5 @@
 .gradle
+.gradle/
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
@@ -41,3 +42,26 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### Environment / Secrets ###
+.env
+.env.*
+!.env.example
+
+### Logs ###
+*.log
+logs/
+
+### Local data ###
+data/
+pgdata/
+
+### Spring Boot ###
+application-local.yml
+application-local.properties
+application-dev-local.yml
+*.pid
+
+### Docker ###
+*.pid
+docker-compose.override.yml
