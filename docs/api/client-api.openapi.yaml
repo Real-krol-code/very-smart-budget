@@ -1,0 +1,1455 @@
+openapi: "3.1.0"
+info:
+  title: "API приложения личного бюджета"
+  version: "1.0.0"
+  description: "Доступ к пользовательским данным и команды UC-01–UC-16. Успешные GET можно повторять. Команды создания бюджета, цели и пополнения повторяются с исходным ключом идемпотентности и тем же телом. После неопределённого исхода команды с версией перечитайте ресурс перед новым редактированием."
+security: [{"UserToken":[]}]
+paths:
+  "/v1/auth/login":
+    post:
+      operationId: "login"
+      summary: "Войти"
+      security: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              required: ["login","password"]
+              properties:
+                login:
+                  type: "string"
+                  minLength: 1
+                password:
+                  type: "string"
+                  minLength: 1
+                  format: "password"
+                  writeOnly: true
+              additionalProperties: false
+            example: {"login":"demo","password":"example-password"}
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required: ["accessToken","tokenType","expiresInSeconds"]
+                properties:
+                  accessToken:
+                    type: "string"
+                  tokenType:
+                    type: "string"
+                    enum: ["Bearer"]
+                  expiresInSeconds:
+                    type: "integer"
+                    format: "int64"
+                    minimum: 1
+                additionalProperties: false
+              example: {"accessToken":"example-token","tokenType":"Bearer","expiresInSeconds":900}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "429":
+          description: "Достигнут лимит запросов"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"RATE_LIMITED","message":"Достигнут лимит запросов"}
+          headers:
+            Retry-After:
+              description: "Минимальная задержка перед повтором в секундах."
+              schema:
+                type: "integer"
+                format: "int64"
+                minimum: 0
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/budgets":
+    post:
+      operationId: "createBudget"
+      summary: "Создать бюджет"
+      parameters: [{"name":"Idempotency-Key","in":"header","required":true,"schema":{"type":"string","minLength":1,"maxLength":128},"description":"Ключ повторной отправки того же запроса."}]
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/BudgetCreate"
+            example: {"month":"2026-11","plannedIncomeMinor":10000000,"allocations":[{"categoryId":"food","shareBasisPoints":10000}]}
+      responses:
+        "201":
+          description: "Создано"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Budget"
+              example: {"id":"budget-1","month":"2026-11","version":1,"currency":"RUB","plannedIncomeMinor":10000000,"allocations":[{"categoryId":"food","shareBasisPoints":10000,"limitMinor":10000000}]}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "409":
+          description: "Конфликт состояния или повторное использование ключа с другим содержимым"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"CONFLICT","message":"Конфликт состояния или повторное использование ключа с другим содержимым"}
+        "422":
+          description: "Нарушено бизнес-правило"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"VALIDATION_FAILED","message":"Нарушено бизнес-правило"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/budgets/{budgetId}":
+    get:
+      operationId: "getBudget"
+      summary: "Получить бюджет"
+      parameters: [{"name":"budgetId","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128},"description":"Идентификатор ресурса."}]
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Budget"
+              example: {"id":"budget-1","month":"2026-11","version":1,"currency":"RUB","plannedIncomeMinor":10000000,"allocations":[{"categoryId":"food","shareBasisPoints":10000,"limitMinor":10000000}]}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "404":
+          description: "Объект или пользователь недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"NOT_FOUND","message":"Объект или пользователь недоступен"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+    put:
+      operationId: "updateBudget"
+      summary: "Заменить параметры текущего бюджета"
+      parameters: [{"name":"budgetId","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128},"description":"Идентификатор ресурса."}]
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/BudgetUpdate"
+            example: {"version":1,"plannedIncomeMinor":10000000,"allocations":[{"categoryId":"food","shareBasisPoints":10000}]}
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Budget"
+              example: {"id":"budget-1","month":"2026-11","version":2,"currency":"RUB","plannedIncomeMinor":10000000,"allocations":[{"categoryId":"food","shareBasisPoints":10000,"limitMinor":10000000}]}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "404":
+          description: "Объект или пользователь недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"NOT_FOUND","message":"Объект или пользователь недоступен"}
+        "409":
+          description: "Конфликт состояния или повторное использование ключа с другим содержимым"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"CONFLICT","message":"Конфликт состояния или повторное использование ключа с другим содержимым"}
+        "422":
+          description: "Нарушено бизнес-правило"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"VALIDATION_FAILED","message":"Нарушено бизнес-правило"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/dashboard":
+    get:
+      operationId: "getDashboard"
+      summary: "Открыть дашборд"
+      parameters: [{"name":"month","in":"query","required":false,"schema":{"type":"string","pattern":"^[0-9]{4}-(0[1-9]|1[0-2])$"},"description":"Месяц. По умолчанию текущий в часовом поясе приложения."}]
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Dashboard"
+              example: {"month":"2026-11","currency":"RUB","budget":{"id":"budget-1","month":"2026-11","version":1,"currency":"RUB","plannedIncomeMinor":10000000,"allocations":[{"categoryId":"food","shareBasisPoints":10000,"limitMinor":10000000}]},"totalSpentMinor":22500,"uncategorizedSpentMinor":0,"categories":[{"categoryId":"food","spentMinor":22500,"limitMinor":10000000,"remainingMinor":9977500,"usedBasisPoints":22}],"topExpenses":[{"id":"tx-1","occurredAt":"2026-11-16T12:00:00+04:00","amountMinor":22500,"currency":"RUB","direction":"DEBIT","description":"Покупка","category":{"id":"food","name":"Продукты"},"version":2}]}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/categories":
+    get:
+      operationId: "listCategories"
+      summary: "Получить доступные категории расходов"
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                type: "array"
+                items:
+                  "$ref": "#/components/schemas/Category"
+              example: [{"id":"food","name":"Продукты"}]
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/transactions":
+    get:
+      operationId: "listTransactions"
+      summary: "Получить операции за месяц"
+      parameters: [{"name":"month","in":"query","required":false,"schema":{"type":"string","pattern":"^[0-9]{4}-(0[1-9]|1[0-2])$"},"description":"Месяц. По умолчанию текущий в часовом поясе приложения."},{"name":"cursor","in":"query","required":false,"schema":{"type":"string","minLength":1},"description":"Непрозрачный курсор. Сохраняйте фильтры первого запроса."},{"name":"limit","in":"query","required":false,"schema":{"type":"integer","format":"int64","minimum":1,"maximum":100,"default":50},"description":"Максимальное число записей."}]
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/TransactionPage"
+              example: {"items":[{"id":"tx-1","occurredAt":"2026-11-16T12:00:00+04:00","amountMinor":22500,"currency":"RUB","direction":"DEBIT","description":"Покупка","category":null,"version":1}],"nextCursor":null}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "404":
+          description: "Объект или пользователь недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"NOT_FOUND","message":"Объект или пользователь недоступен"}
+        "410":
+          description: "Срок действия курсора истёк"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"CURSOR_EXPIRED","message":"Срок действия курсора истёк"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/transactions/{transactionId}":
+    get:
+      operationId: "getTransaction"
+      summary: "Получить операцию"
+      parameters: [{"name":"transactionId","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128},"description":"Идентификатор ресурса."}]
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Transaction"
+              example: {"id":"tx-1","occurredAt":"2026-11-16T12:00:00+04:00","amountMinor":22500,"currency":"RUB","direction":"DEBIT","description":"Покупка","category":null,"version":1}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "404":
+          description: "Объект или пользователь недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"NOT_FOUND","message":"Объект или пользователь недоступен"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/transactions/{transactionId}/category":
+    put:
+      operationId: "changeTransactionCategory"
+      summary: "Назначить категорию операции"
+      parameters: [{"name":"transactionId","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128},"description":"Идентификатор ресурса."}]
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              required: ["categoryId","version"]
+              properties:
+                categoryId:
+                  type: "string"
+                  minLength: 1
+                  maxLength: 128
+                version:
+                  type: "integer"
+                  format: "int64"
+                  minimum: 1
+              additionalProperties: false
+            example: {"categoryId":"food","version":1}
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required: ["transaction","affectedCategories"]
+                properties:
+                  transaction:
+                    "$ref": "#/components/schemas/Transaction"
+                  affectedCategories:
+                    type: "array"
+                    items:
+                      "$ref": "#/components/schemas/CategoryUsage"
+                additionalProperties: false
+              example: {"transaction":{"id":"tx-1","occurredAt":"2026-11-16T12:00:00+04:00","amountMinor":22500,"currency":"RUB","direction":"DEBIT","description":"Покупка","category":{"id":"food","name":"Продукты"},"version":2},"affectedCategories":[{"categoryId":"food","spentMinor":22500,"limitMinor":10000000,"remainingMinor":9977500,"usedBasisPoints":22}]}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "404":
+          description: "Объект или пользователь недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"NOT_FOUND","message":"Объект или пользователь недоступен"}
+        "409":
+          description: "Конфликт состояния или повторное использование ключа с другим содержимым"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"CONFLICT","message":"Конфликт состояния или повторное использование ключа с другим содержимым"}
+        "422":
+          description: "Нарушено бизнес-правило"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"VALIDATION_FAILED","message":"Нарушено бизнес-правило"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/goals":
+    get:
+      operationId: "listGoals"
+      summary: "Получить цели"
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                type: "array"
+                items:
+                  "$ref": "#/components/schemas/Goal"
+              example: [{"id":"goal-1","name":"Отпуск","currency":"RUB","targetMinor":600000,"savedMinor":0,"remainingMinor":600000,"progressBasisPoints":0,"deadline":"2027-05-16","remainingMonths":6,"recommendedMonthlyMinor":100000,"status":"ACTIVE"}]
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+    post:
+      operationId: "createGoal"
+      summary: "Создать цель"
+      parameters: [{"name":"Idempotency-Key","in":"header","required":true,"schema":{"type":"string","minLength":1,"maxLength":128},"description":"Ключ повторной отправки того же запроса."}]
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/GoalCreate"
+            example: {"name":"Отпуск","targetMinor":600000,"deadline":"2027-05-16"}
+      responses:
+        "201":
+          description: "Создано"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Goal"
+              example: {"id":"goal-1","name":"Отпуск","currency":"RUB","targetMinor":600000,"savedMinor":0,"remainingMinor":600000,"progressBasisPoints":0,"deadline":"2027-05-16","remainingMonths":6,"recommendedMonthlyMinor":100000,"status":"ACTIVE"}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "409":
+          description: "Конфликт состояния или повторное использование ключа с другим содержимым"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"CONFLICT","message":"Конфликт состояния или повторное использование ключа с другим содержимым"}
+        "422":
+          description: "Нарушено бизнес-правило"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"VALIDATION_FAILED","message":"Нарушено бизнес-правило"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/goals/{goalId}":
+    get:
+      operationId: "getGoal"
+      summary: "Получить прогресс цели"
+      parameters: [{"name":"goalId","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128},"description":"Идентификатор ресурса."}]
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Goal"
+              example: {"id":"goal-1","name":"Отпуск","currency":"RUB","targetMinor":600000,"savedMinor":0,"remainingMinor":600000,"progressBasisPoints":0,"deadline":"2027-05-16","remainingMonths":6,"recommendedMonthlyMinor":100000,"status":"ACTIVE"}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "404":
+          description: "Объект или пользователь недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"NOT_FOUND","message":"Объект или пользователь недоступен"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/goals/{goalId}/contributions":
+    post:
+      operationId: "addGoalContribution"
+      summary: "Пополнить цель"
+      parameters: [{"name":"goalId","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128},"description":"Идентификатор ресурса."},{"name":"Idempotency-Key","in":"header","required":true,"schema":{"type":"string","minLength":1,"maxLength":128},"description":"Ключ повторной отправки того же запроса."}]
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              required: ["amountMinor"]
+              properties:
+                amountMinor:
+                  type: "integer"
+                  format: "int64"
+                  minimum: 1
+              additionalProperties: false
+            example: {"amountMinor":60000}
+      responses:
+        "201":
+          description: "Создано"
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required: ["contributionId","amountMinor","createdAt","goal"]
+                properties:
+                  contributionId:
+                    type: "string"
+                    minLength: 1
+                    maxLength: 128
+                  amountMinor:
+                    type: "integer"
+                    format: "int64"
+                    minimum: 1
+                  createdAt:
+                    type: "string"
+                    format: "date-time"
+                  goal:
+                    "$ref": "#/components/schemas/Goal"
+                additionalProperties: false
+              example: {"contributionId":"c-1","amountMinor":60000,"createdAt":"2026-11-16T12:00:00+04:00","goal":{"id":"goal-1","name":"Отпуск","currency":"RUB","targetMinor":600000,"savedMinor":60000,"remainingMinor":540000,"progressBasisPoints":1000,"deadline":"2027-05-16","remainingMonths":6,"recommendedMonthlyMinor":90000,"status":"ACTIVE"}}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "404":
+          description: "Объект или пользователь недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"NOT_FOUND","message":"Объект или пользователь недоступен"}
+        "409":
+          description: "Конфликт состояния или повторное использование ключа с другим содержимым"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"CONFLICT","message":"Конфликт состояния или повторное использование ключа с другим содержимым"}
+        "422":
+          description: "Нарушено бизнес-правило"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"VALIDATION_FAILED","message":"Нарушено бизнес-правило"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/notifications":
+    get:
+      operationId: "listNotifications"
+      summary: "Получить центр уведомлений"
+      parameters: [{"name":"cursor","in":"query","required":false,"schema":{"type":"string","minLength":1},"description":"Непрозрачный курсор. Сохраняйте фильтры первого запроса."},{"name":"limit","in":"query","required":false,"schema":{"type":"integer","format":"int64","minimum":1,"maximum":100,"default":50},"description":"Максимальное число записей."}]
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/NotificationPage"
+              example: {"items":[{"id":"n-1","type":"LIMIT_80","text":"Израсходовано 80% лимита","createdAt":"2026-11-16T12:00:00+04:00"}],"nextCursor":null}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "404":
+          description: "Объект или пользователь недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"NOT_FOUND","message":"Объект или пользователь недоступен"}
+        "410":
+          description: "Срок действия курсора истёк"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"CURSOR_EXPIRED","message":"Срок действия курсора истёк"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/notifications/{notificationId}":
+    get:
+      operationId: "getNotification"
+      summary: "Получить уведомление"
+      parameters: [{"name":"notificationId","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128},"description":"Идентификатор ресурса."}]
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Notification"
+              example: {"id":"n-1","type":"LIMIT_80","text":"Израсходовано 80% лимита","createdAt":"2026-11-16T12:00:00+04:00","month":"2026-11","category":{"id":"food","name":"Продукты"},"spentMinor":8000000,"limitMinor":10000000,"currency":"RUB","objectUrl":null}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "404":
+          description: "Объект или пользователь недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"NOT_FOUND","message":"Объект или пользователь недоступен"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/history":
+    get:
+      operationId: "listHistory"
+      summary: "Получить общую историю"
+      parameters: [{"name":"cursor","in":"query","required":false,"schema":{"type":"string","minLength":1},"description":"Непрозрачный курсор. Сохраняйте фильтры первого запроса."},{"name":"limit","in":"query","required":false,"schema":{"type":"integer","format":"int64","minimum":1,"maximum":100,"default":50},"description":"Максимальное число записей."}]
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/HistoryPage"
+              example: {"items":[{"id":"h-1","type":"TRANSACTION_CATEGORY_CHANGED","changedAt":"2026-11-16T12:00:00+04:00"}],"nextCursor":null}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "404":
+          description: "Объект или пользователь недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"NOT_FOUND","message":"Объект или пользователь недоступен"}
+        "410":
+          description: "Срок действия курсора истёк"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"CURSOR_EXPIRED","message":"Срок действия курсора истёк"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/history/{eventId}":
+    get:
+      operationId: "getHistoryEvent"
+      summary: "Получить детали изменения"
+      parameters: [{"name":"eventId","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128},"description":"Идентификатор ресурса."}]
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/HistoryEvent"
+              example: {"id":"h-1","type":"TRANSACTION_CATEGORY_CHANGED","changedAt":"2026-11-16T12:00:00+04:00","transactionId":"tx-1","objectUrl":null,"previousCategory":null,"newCategory":{"id":"food","name":"Продукты"},"initiator":{"type":"USER","id":"user-1"}}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "404":
+          description: "Объект или пользователь недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"NOT_FOUND","message":"Объект или пользователь недоступен"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+  "/v1/transactions/{transactionId}/history":
+    get:
+      operationId: "listTransactionHistory"
+      summary: "Получить историю транзакции"
+      parameters: [{"name":"transactionId","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128},"description":"Идентификатор ресурса."},{"name":"cursor","in":"query","required":false,"schema":{"type":"string","minLength":1},"description":"Непрозрачный курсор. Сохраняйте фильтры первого запроса."},{"name":"limit","in":"query","required":false,"schema":{"type":"integer","format":"int64","minimum":1,"maximum":100,"default":50},"description":"Максимальное число записей."}]
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/HistoryPage"
+              example: {"items":[{"id":"h-1","type":"TRANSACTION_CATEGORY_CHANGED","changedAt":"2026-11-16T12:00:00+04:00"}],"nextCursor":null}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "404":
+          description: "Объект или пользователь недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"NOT_FOUND","message":"Объект или пользователь недоступен"}
+        "410":
+          description: "Срок действия курсора истёк"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"CURSOR_EXPIRED","message":"Срок действия курсора истёк"}
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+components:
+  securitySchemes:
+    UserToken:
+      type: "http"
+      scheme: "bearer"
+      bearerFormat: "JWT"
+  schemas:
+    Error:
+      type: "object"
+      required: ["code","message"]
+      properties:
+        code:
+          type: "string"
+        message:
+          type: "string"
+        details:
+          type: "array"
+          items:
+            type: "object"
+            required: ["field","reason"]
+            properties:
+              field:
+                type: "string"
+              reason:
+                type: "string"
+            additionalProperties: false
+      additionalProperties: false
+    Category:
+      type: "object"
+      required: ["id","name"]
+      properties:
+        id:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        name:
+          type: "string"
+          minLength: 1
+      additionalProperties: false
+    Allocation:
+      type: "object"
+      required: ["categoryId","shareBasisPoints"]
+      properties:
+        categoryId:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        shareBasisPoints:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+          maximum: 10000
+      additionalProperties: false
+    BudgetCreate:
+      type: "object"
+      required: ["month","plannedIncomeMinor","allocations"]
+      properties:
+        month:
+          type: "string"
+          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+        plannedIncomeMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        allocations:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/Allocation"
+          minItems: 1
+      additionalProperties: false
+    BudgetUpdate:
+      type: "object"
+      required: ["version","plannedIncomeMinor","allocations"]
+      properties:
+        version:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        plannedIncomeMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        allocations:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/Allocation"
+          minItems: 1
+      additionalProperties: false
+    Budget:
+      type: "object"
+      required: ["id","month","version","currency","plannedIncomeMinor","allocations"]
+      properties:
+        id:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        month:
+          type: "string"
+          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+        version:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        currency:
+          type: "string"
+          enum: ["RUB"]
+        plannedIncomeMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        allocations:
+          type: "array"
+          items:
+            type: "object"
+            required: ["categoryId","shareBasisPoints","limitMinor"]
+            properties:
+              categoryId:
+                type: "string"
+                minLength: 1
+                maxLength: 128
+              shareBasisPoints:
+                type: "integer"
+                format: "int64"
+                minimum: 0
+                maximum: 10000
+              limitMinor:
+                type: "integer"
+                format: "int64"
+                minimum: 0
+            additionalProperties: false
+      additionalProperties: false
+    CategoryUsage:
+      type: "object"
+      required: ["categoryId","spentMinor","limitMinor","remainingMinor","usedBasisPoints"]
+      properties:
+        categoryId:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        spentMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        limitMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        remainingMinor:
+          type: "integer"
+          format: "int64"
+        usedBasisPoints:
+          anyOf: [{"type":"integer","format":"int64","minimum":0},{"type":"null"}]
+      additionalProperties: false
+    Dashboard:
+      type: "object"
+      required: ["month","currency","budget","totalSpentMinor","uncategorizedSpentMinor","categories","topExpenses"]
+      properties:
+        month:
+          type: "string"
+          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+        currency:
+          type: "string"
+          enum: ["RUB"]
+        budget:
+          anyOf: [{"$ref":"#/components/schemas/Budget"},{"type":"null"}]
+        totalSpentMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        uncategorizedSpentMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        categories:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/CategoryUsage"
+        topExpenses:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/Transaction"
+      additionalProperties: false
+    Transaction:
+      type: "object"
+      required: ["id","occurredAt","amountMinor","currency","direction","description","category","version"]
+      properties:
+        id:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        occurredAt:
+          type: "string"
+          format: "date-time"
+        amountMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        currency:
+          type: "string"
+          enum: ["RUB"]
+        direction:
+          type: "string"
+          enum: ["DEBIT","CREDIT"]
+        description:
+          type: "string"
+        category:
+          anyOf: [{"$ref":"#/components/schemas/Category"},{"type":"null"}]
+        version:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        merchant:
+          type: "string"
+        mcc:
+          type: "string"
+          pattern: "^[0-9]{4}$"
+      additionalProperties: false
+    TransactionPage:
+      type: "object"
+      required: ["items","nextCursor"]
+      properties:
+        items:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/Transaction"
+        nextCursor:
+          anyOf: [{"type":"string","minLength":1},{"type":"null"}]
+      additionalProperties: false
+    GoalCreate:
+      type: "object"
+      required: ["name","targetMinor","deadline"]
+      properties:
+        name:
+          type: "string"
+          minLength: 1
+          maxLength: 120
+        targetMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        deadline:
+          type: "string"
+          format: "date"
+      additionalProperties: false
+    Goal:
+      type: "object"
+      required: ["id","name","currency","targetMinor","savedMinor","remainingMinor","progressBasisPoints","deadline","remainingMonths","recommendedMonthlyMinor","status"]
+      properties:
+        id:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        name:
+          type: "string"
+        currency:
+          type: "string"
+          enum: ["RUB"]
+        targetMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        savedMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        remainingMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        progressBasisPoints:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+          maximum: 10000
+        deadline:
+          type: "string"
+          format: "date"
+        remainingMonths:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        recommendedMonthlyMinor:
+          anyOf: [{"type":"integer","format":"int64","minimum":0},{"type":"null"}]
+        status:
+          type: "string"
+          enum: ["ACTIVE","ACHIEVED","OVERDUE"]
+      additionalProperties: false
+    NotificationSummary:
+      type: "object"
+      required: ["id","type","text","createdAt"]
+      properties:
+        id:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        type:
+          type: "string"
+          enum: ["LIMIT_80","LIMIT_100"]
+        text:
+          type: "string"
+        createdAt:
+          type: "string"
+          format: "date-time"
+      additionalProperties: false
+    NotificationPage:
+      type: "object"
+      required: ["items","nextCursor"]
+      properties:
+        items:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/NotificationSummary"
+        nextCursor:
+          anyOf: [{"type":"string","minLength":1},{"type":"null"}]
+      additionalProperties: false
+    Notification:
+      type: "object"
+      required: ["id","type","text","createdAt","month","category","spentMinor","limitMinor","currency","objectUrl"]
+      properties:
+        id:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        type:
+          type: "string"
+          enum: ["LIMIT_80","LIMIT_100"]
+        text:
+          type: "string"
+        createdAt:
+          type: "string"
+          format: "date-time"
+        month:
+          type: "string"
+          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+        category:
+          "$ref": "#/components/schemas/Category"
+        spentMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        limitMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        currency:
+          type: "string"
+          enum: ["RUB"]
+        objectUrl:
+          anyOf: [{"type":"string"},{"type":"null"}]
+      additionalProperties: false
+    HistorySummary:
+      type: "object"
+      required: ["id","type","changedAt"]
+      properties:
+        id:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        type:
+          type: "string"
+          enum: ["TRANSACTION_CATEGORY_CHANGED"]
+        changedAt:
+          type: "string"
+          format: "date-time"
+      additionalProperties: false
+    HistoryPage:
+      type: "object"
+      required: ["items","nextCursor"]
+      properties:
+        items:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/HistorySummary"
+        nextCursor:
+          anyOf: [{"type":"string","minLength":1},{"type":"null"}]
+      additionalProperties: false
+    HistoryEvent:
+      type: "object"
+      required: ["id","type","changedAt","transactionId","objectUrl","previousCategory","newCategory","initiator"]
+      properties:
+        id:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        type:
+          type: "string"
+          enum: ["TRANSACTION_CATEGORY_CHANGED"]
+        changedAt:
+          type: "string"
+          format: "date-time"
+        transactionId:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        objectUrl:
+          anyOf: [{"type":"string"},{"type":"null"}]
+        previousCategory:
+          anyOf: [{"$ref":"#/components/schemas/Category"},{"type":"null"}]
+        newCategory:
+          "$ref": "#/components/schemas/Category"
+        initiator:
+          type: "object"
+          required: ["type","id"]
+          properties:
+            type:
+              type: "string"
+              enum: ["USER"]
+            id:
+              type: "string"
+              minLength: 1
+              maxLength: 128
+          additionalProperties: false
+      additionalProperties: false

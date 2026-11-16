@@ -1,0 +1,150 @@
+openapi: "3.1.0"
+info:
+  title: "Same-Bank"
+  version: "1.0.0"
+  description: "Источник банковских операций. Календарный месяц определяется в согласованном часовом поясе приложения. Внешний ID стабилен и уникален в пределах внешнего пользователя этого источника. Первый запрос фиксирует снимок со стабильной сортировкой occurredAt, externalTransactionId по возрастанию. Курсор привязан к снимку, пользователю, месяцу и размеру страницы. Повтор с тем же курсором воспроизводит страницу до истечения срока. При 410 начать обход заново. После сетевой ошибки, 429 или 5xx повторить тот же GET до двух раз после начальной попытки, учитывая Retry-After."
+security: [{"BankToken":[]}]
+paths:
+  "/v1/users/{externalUserId}/transactions":
+    get:
+      operationId: "listBankTransactions"
+      summary: "Получить страницу операций за месяц"
+      description: "Для известного пользователя пустой набор возвращается с items: [] и nextCursor: null. При неверной комбинации курсора и фильтров возвращается 400."
+      parameters: [{"name":"externalUserId","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128},"description":"Идентификатор ресурса."},{"name":"month","in":"query","required":true,"schema":{"type":"string","pattern":"^[0-9]{4}-(0[1-9]|1[0-2])$"},"description":"Обязательный месяц загрузки."},{"name":"cursor","in":"query","required":false,"schema":{"type":"string","minLength":1},"description":"Непрозрачный курсор. Сохраняйте фильтры первого запроса."},{"name":"limit","in":"query","required":false,"schema":{"type":"integer","format":"int64","minimum":1,"maximum":100,"default":50},"description":"Максимальное число записей."}]
+      responses:
+        "200":
+          description: "Успешно"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/BankPage"
+              example: {"items":[{"externalTransactionId":"bank-tx-1","occurredAt":"2026-11-16T12:00:00+04:00","amountMinor":22500,"currency":"RUB","direction":"DEBIT","description":"Покупка","mcc":"5411","merchant":"Супермаркет"}],"nextCursor":null}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "403":
+          description: "Недостаточные права сервисного токена"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"FORBIDDEN","message":"Недостаточные права сервисного токена"}
+        "404":
+          description: "Объект или пользователь недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"NOT_FOUND","message":"Объект или пользователь недоступен"}
+        "410":
+          description: "Срок действия курсора истёк"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"CURSOR_EXPIRED","message":"Срок действия курсора истёк"}
+        "429":
+          description: "Достигнут лимит запросов"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"RATE_LIMITED","message":"Достигнут лимит запросов"}
+          headers:
+            Retry-After:
+              description: "Минимальная задержка перед повтором в секундах."
+              schema:
+                type: "integer"
+                format: "int64"
+                minimum: 0
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+components:
+  securitySchemes:
+    BankToken:
+      type: "http"
+      scheme: "bearer"
+  schemas:
+    Error:
+      type: "object"
+      required: ["code","message"]
+      properties:
+        code:
+          type: "string"
+        message:
+          type: "string"
+        details:
+          type: "array"
+          items:
+            type: "object"
+            required: ["field","reason"]
+            properties:
+              field:
+                type: "string"
+              reason:
+                type: "string"
+            additionalProperties: false
+      additionalProperties: false
+    BankOperation:
+      type: "object"
+      required: ["externalTransactionId","occurredAt","amountMinor","currency","direction","description"]
+      properties:
+        externalTransactionId:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        occurredAt:
+          type: "string"
+          format: "date-time"
+        amountMinor:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        currency:
+          type: "string"
+          enum: ["RUB"]
+        direction:
+          type: "string"
+          enum: ["DEBIT","CREDIT"]
+        description:
+          type: "string"
+        mcc:
+          type: "string"
+          pattern: "^[0-9]{4}$"
+        merchant:
+          type: "string"
+      additionalProperties: false
+    BankPage:
+      type: "object"
+      required: ["items","nextCursor"]
+      properties:
+        items:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/BankOperation"
+        nextCursor:
+          anyOf: [{"type":"string","minLength":1},{"type":"null"}]
+      additionalProperties: false
