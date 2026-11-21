@@ -31,7 +31,7 @@ public class SyncScheduler {
                         r -> log.info("sync {} {}: {}", id, month, r),
                         () -> log.info("sync {} {} skipped: already running", id, month));
             } catch (Exception e) {
-                log.error("sync {} {} failed", id, month, e);   // одно подключение не валит остальные
+                log.error("sync {} {} failed", id, month, e);
             }
         }
     }

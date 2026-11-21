@@ -41,7 +41,6 @@ class BankController {
         }
     }
 
-    // тестовый стенд: изменить данные в банке (сценарий "изменение данных у дубля")
     @PostMapping("/test/users/{externalUserId}/transactions")
     void upsert(@PathVariable String externalUserId, @RequestBody BankTransaction t) {
         store.upsert(externalUserId, t);

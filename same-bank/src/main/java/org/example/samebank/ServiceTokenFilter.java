@@ -19,7 +19,12 @@ class ServiceTokenFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
             throws ServletException, IOException {
-        if (req.getRequestURI().startsWith("/actuator")) { chain.doFilter(req, res); return; }
+        String uri = req.getRequestURI();
+        // документацию и health отдаём без токена; сам API — только с токеном
+        if (uri.startsWith("/actuator") || uri.startsWith("/swagger-ui") || uri.startsWith("/v3/api-docs")) {
+            chain.doFilter(req, res);
+            return;
+        }
         String token = req.getHeader("X-Service-Token");
         if (token == null || !MessageDigest.isEqual(
                 token.getBytes(StandardCharsets.UTF_8),
