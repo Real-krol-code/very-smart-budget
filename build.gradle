@@ -16,4 +16,4 @@ dependencies {
 
 test {
     useJUnitPlatform()
-}
+}ntre

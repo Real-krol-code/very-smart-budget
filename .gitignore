@@ -64,4 +64,7 @@ application-dev-local.yml
 
 ### Docker ###
 *.pid
-docker-compose.override.yml
+docker-compose.override.yml.env
+.gradle/
+backend/build/
+same-bank/build/

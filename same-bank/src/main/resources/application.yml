@@ -1,0 +1,14 @@
+server:
+  port: 8081
+  error:
+    include-message: always
+spring:
+  application:
+    name: same-bank
+same-bank:
+  service-token: ${SAME_BANK_SERVICE_TOKEN:dev-same-bank-token}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
