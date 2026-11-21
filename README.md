@@ -85,6 +85,35 @@
 
 <br>
 
+## Запуск
+
+```bash
+cp .env.example .env     # заполните пароли: openssl rand -base64 24
+```
+
+### Только БД
+
+```bash
+docker compose up -d postgres
+```
+
+### Swagger
+```bash
+docker compose up -d --build swagger
+http://localhost:8090/
+```
+
+### Весь стек (когда готов backend)
+
+```bash
+docker compose up -d --build
+```
+
+- **Приложение (фронт + API):** http://localhost:8080
+- **pgAdmin** (по желанию): `docker compose --profile tools up -d` → http://localhost:5050
+
+Остановка: `docker compose down`. Полный сброс БД: `docker compose down -v`.
+
 ## Наша команда
 
 | Роль | Участник |
@@ -100,10 +129,9 @@
 
 В команде настроен строгий процесс ветвления:
 
-- `main` — продакшн (обновляется раз в сутки/по готовности).
+- `main` — продакшн (обновляется по готовности).
 - `develop` — интеграция фич.
-- `qa` — ветка для тестирования.
-- `dev_Vlad` / `dev_Senya` — личные ветки разработчиков.
+- `fix_name` — новая ветка создаётся под задачу.
 
 <br>
 

@@ -1,0 +1,122 @@
+name: DB migration check
+
+on:
+  push:
+    branches: [main, 'feature/**']
+    paths:
+      - 'src/main/resources/db/migration/**'
+      - 'docker-compose.db.yml'
+      - '.github/workflows/db-migration.yml'
+  pull_request:
+    paths:
+      - 'src/main/resources/db/migration/**'
+      - 'docker-compose.db.yml'
+      - '.github/workflows/db-migration.yml'
+
+env:
+  FLYWAY: >-
+    docker compose -f docker-compose.db.yml --profile migration run --rm flyway
+    -url=jdbc:postgresql://postgres:5432/smart_budget
+    -user=smart_budget -password=local_dev_password
+  PSQL: docker exec smart-budget-db psql -U smart_budget -d smart_budget -v ON_ERROR_STOP=1
+
+jobs:
+  flyway:
+    name: Migration and constraints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start PostgreSQL
+        run: docker compose -f docker-compose.db.yml up -d --wait postgres
+
+      - name: Migrate (clean DB)
+        run: ${{ env.FLYWAY }} migrate
+
+      - name: Migrate again (idempotency)
+        run: ${{ env.FLYWAY }} migrate
+
+      - name: Validate checksums
+        run: ${{ env.FLYWAY }} validate
+
+      - name: Validate detects edited migration
+        run: |
+          echo "-- tamper" >> src/main/resources/db/migration/V1__init_schema.sql
+          if ${{ env.FLYWAY }} validate; then
+            echo "::error::validate did not detect the edited migration"; exit 1
+          fi
+          git checkout -- src/main/resources/db/migration/V1__init_schema.sql
+
+      - name: Constraint checks
+        run: |
+          docker exec -i smart-budget-db psql -U smart_budget -d smart_budget -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO users(email, password_hash) VALUES ('a@x.com', 'h');
+
+          DO $$ BEGIN
+            INSERT INTO users(email, password_hash) VALUES ('A@X.com', 'h');
+            RAISE EXCEPTION 'duplicate email was accepted';
+          EXCEPTION WHEN unique_violation THEN NULL; END $$;
+
+          DO $$ BEGIN
+            INSERT INTO users(email, password_hash, account_status) VALUES ('c@x.com', 'h', 'FOO');
+            RAISE EXCEPTION 'invalid status was accepted';
+          EXCEPTION WHEN check_violation THEN NULL; END $$;
+
+          DO $$ BEGIN
+            INSERT INTO transactions(user_id, amount, currency_code, transaction_type, occurred_at)
+            SELECT id, -1, 'RUB', 'EXPENSE', now() FROM users WHERE email = 'a@x.com';
+            RAISE EXCEPTION 'negative amount was accepted';
+          EXCEPTION WHEN check_violation THEN NULL; END $$;
+
+          INSERT INTO transactions(user_id, amount, currency_code, transaction_type, occurred_at)
+          SELECT id, 10.5, 'RUB', 'EXPENSE', now() FROM users WHERE email = 'a@x.com';
+
+          DELETE FROM users WHERE email = 'a@x.com';
+          DO $$ BEGIN
+            IF (SELECT count(*) FROM transactions) <> 0 THEN
+              RAISE EXCEPTION 'cascade delete did not remove transactions';
+            END IF;
+          END $$;
+          SQL
+
+      - name: Show DB logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.db.yml logs postgres
+
+  # Вставка за другие месяца
+  partitions:
+    name: Partition coverage (known bug)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start PostgreSQL
+        run: docker compose -f docker-compose.db.yml up -d --wait postgres
+
+      - name: Migrate
+        run: ${{ env.FLYWAY }} migrate
+
+      - name: Create test user
+        run: ${{ env.PSQL }} -c "INSERT INTO users(email, password_hash) VALUES ('a@x.com', 'h');"
+
+      - name: Insert transaction 6 months in the past
+        if: ${{ !cancelled() }}
+        run: |
+          ${{ env.PSQL }} -c "INSERT INTO transactions(user_id, amount, currency_code, transaction_type, occurred_at) SELECT id, 10, 'RUB', 'EXPENSE', now() - interval '6 months' FROM users WHERE email = 'a@x.com';" \
+          || { echo "::error title=No partition (past date)::Insert with occurred_at = now() - 6 months failed"; exit 1; }
+
+      - name: Insert transaction 1 year in the past
+        if: ${{ !cancelled() }}
+        run: |
+          ${{ env.PSQL }} -c "INSERT INTO transactions(user_id, amount, currency_code, transaction_type, occurred_at) SELECT id, 10, 'RUB', 'EXPENSE', now() - interval '1 year' FROM users WHERE email = 'a@x.com';" \
+          || { echo "::error title=No partition (past date)::Insert with occurred_at = now() - 1 year failed"; exit 1; }
+
+      - name: Insert transaction 6 months in the future
+        if: ${{ !cancelled() }}
+        run: |
+          ${{ env.PSQL }} -c "INSERT INTO transactions(user_id, amount, currency_code, transaction_type, occurred_at) SELECT id, 10, 'RUB', 'EXPENSE', now() + interval '6 months' FROM users WHERE email = 'a@x.com';" \
+          || { echo "::error title=No partition (future date)::Insert with occurred_at = now() + 6 months failed"; exit 1; }
+
+      - name: Show DB logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.db.yml logs postgres
