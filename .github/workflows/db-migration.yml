@@ -39,6 +39,14 @@ jobs:
       - name: Validate checksums
         run: ${{ env.FLYWAY }} validate
 
+      - name: Validate detects edited migration
+        run: |
+          echo "-- tamper" >> src/main/resources/db/migration/V1__init_schema.sql
+          if ${{ env.FLYWAY }} validate; then
+            echo "::error::validate did not detect the edited migration"; exit 1
+          fi
+          git checkout -- src/main/resources/db/migration/V1__init_schema.sql
+
       - name: Constraint checks
         run: |
           docker exec -i smart-budget-db psql -U smart_budget -d smart_budget -v ON_ERROR_STOP=1 <<'SQL'
