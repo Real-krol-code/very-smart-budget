@@ -23,6 +23,10 @@ jobs:
     name: Build and test
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    
+    defaults:
+      run:
+        working-directory: backend
 
     steps:
       - name: Checkout repository
@@ -36,6 +40,8 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          build-root-directory: backend
 
       - name: Validate Gradle Wrapper
         uses: gradle/actions/wrapper-validation@v4
