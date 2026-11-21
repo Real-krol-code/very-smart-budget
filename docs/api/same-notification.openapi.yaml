@@ -1,0 +1,156 @@
+openapi: "3.1.0"
+info:
+  title: "Same Notification Service"
+  version: "1.0.0"
+  description: "Приём уведомлений для push-доставки. Получатель определяется по внешнему идентификатору в согласованном справочнике. Повтор с тем же ID и телом возвращает исходное подтверждение. Другие данные для того же ID возвращают 409. Ключ хранится как минимум 24 часа с первого приёма. Ответ 202 подтверждает постановку в очередь. Доставка на устройство и её статус находятся за пределами этого интерфейса."
+security: [{"NotificationToken":[]}]
+paths:
+  "/v1/push-notifications":
+    post:
+      operationId: "submitPush"
+      summary: "Поставить push в очередь"
+      description: "Idempotency-Key должен совпадать с notificationId. При сетевом сбое, 429 или 5xx допускаются два повтора с тем же ключом в пределах 24 часов. При остальных 4xx повторы прекращаются."
+      parameters: [{"name":"Idempotency-Key","in":"header","required":true,"schema":{"type":"string","minLength":1,"maxLength":128},"description":"Ключ повторной отправки того же запроса."}]
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/PushRequest"
+            example: {"notificationId":"n-1","recipientId":"recipient-1","type":"LIMIT_80","text":"Израсходовано 80% лимита по категории «Продукты»"}
+      responses:
+        "202":
+          description: "Принято к обработке"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/PushAccepted"
+              example: {"notificationId":"n-1","deliveryRequestId":"delivery-1","status":"ACCEPTED"}
+        "400":
+          description: "Некорректный запрос"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INVALID_REQUEST","message":"Некорректный запрос"}
+        "401":
+          description: "Недействительные учётные данные или токен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"UNAUTHORIZED","message":"Недействительные учётные данные или токен"}
+        "403":
+          description: "Недостаточные права сервисного токена"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"FORBIDDEN","message":"Недостаточные права сервисного токена"}
+        "404":
+          description: "Объект или пользователь недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"NOT_FOUND","message":"Объект или пользователь недоступен"}
+        "409":
+          description: "Конфликт состояния или повторное использование ключа с другим содержимым"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"CONFLICT","message":"Конфликт состояния или повторное использование ключа с другим содержимым"}
+        "429":
+          description: "Достигнут лимит запросов"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"RATE_LIMITED","message":"Достигнут лимит запросов"}
+          headers:
+            Retry-After:
+              description: "Минимальная задержка перед повтором в секундах."
+              schema:
+                type: "integer"
+                format: "int64"
+                minimum: 0
+        "500":
+          description: "Внутренняя ошибка"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"INTERNAL_ERROR","message":"Внутренняя ошибка"}
+        "503":
+          description: "Сервис временно недоступен"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/Error"
+              example: {"code":"SERVICE_UNAVAILABLE","message":"Сервис временно недоступен"}
+components:
+  securitySchemes:
+    NotificationToken:
+      type: "http"
+      scheme: "bearer"
+  schemas:
+    Error:
+      type: "object"
+      required: ["code","message"]
+      properties:
+        code:
+          type: "string"
+        message:
+          type: "string"
+        details:
+          type: "array"
+          items:
+            type: "object"
+            required: ["field","reason"]
+            properties:
+              field:
+                type: "string"
+              reason:
+                type: "string"
+            additionalProperties: false
+      additionalProperties: false
+    PushRequest:
+      type: "object"
+      required: ["notificationId","recipientId","type","text"]
+      properties:
+        notificationId:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        recipientId:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        type:
+          type: "string"
+          enum: ["LIMIT_80","LIMIT_100"]
+        text:
+          type: "string"
+          minLength: 1
+          maxLength: 500
+        objectUrl:
+          type: "string"
+          pattern: "^/v1/"
+      additionalProperties: false
+    PushAccepted:
+      type: "object"
+      required: ["notificationId","deliveryRequestId","status"]
+      properties:
+        notificationId:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        deliveryRequestId:
+          type: "string"
+          minLength: 1
+          maxLength: 128
+        status:
+          type: "string"
+          enum: ["ACCEPTED"]
+      additionalProperties: false
