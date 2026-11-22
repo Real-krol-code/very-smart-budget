@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: transaction-module
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/smart_budget}
+    username: ${SPRING_DATASOURCE_USERNAME:smart_budget}
+    password: ${SPRING_DATASOURCE_PASSWORD:local_dev_password}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+same-bank:
+  base-url: ${SAME_BANK_BASE_URL:http://localhost:8081}
+  service-token: ${SAME_BANK_SERVICE_TOKEN:dev-same-bank-token}
+  page-size: ${SAME_BANK_PAGE_SIZE:50}
+
+sync:
+  cron: "${SYNC_CRON:0 0 * * * *}"
