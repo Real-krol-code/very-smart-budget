@@ -21,7 +21,7 @@ services:
     image: flyway/flyway:13.12.2
     profiles: ["migration"]
     volumes:
-      - ./src/main/resources/db/migration:/flyway/sql:ro
+      - ./backend/src/main/resources/db/migration:/flyway/sql:ro
     depends_on:
       postgres:
         condition: service_healthy
