@@ -26,5 +26,34 @@ services:
       postgres:
         condition: service_healthy
 
+  partition-maintainer:
+    image: postgres:16
+    container_name: smart-budget-partition-maintainer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: smart_budget
+      PGDATABASE: smart_budget
+      PGPASSWORD: ${POSTGRES_PASSWORD:-local_dev_password}
+    entrypoint: [ "/bin/sh" ]
+    command:
+      - "-c"
+      - |
+        while true; do
+          echo "Запуск обслуживания партиций"
+
+          if psql -v ON_ERROR_STOP=1 -c "SELECT public.maintain_transaction_partitions();"; then
+            echo "Обслуживание партиций завершено"
+            sleep 86400
+          else
+            echo "Ошибка обслуживания партиций. Повторная попытка через 60 секунд"
+            sleep 60
+          fi
+        done
+
 volumes:
   smart_budget_postgres_data:
